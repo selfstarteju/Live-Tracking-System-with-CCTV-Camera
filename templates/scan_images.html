@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Images - Smart ID Card Tracking System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar {
+            background-color: #343a40;
+        }
+        .content {
+            padding: 20px;
+        }
+        .scan-card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .scan-header {
+            background-color: #2575fc;
+            color: white;
+            padding: 15px;
+            font-weight: 600;
+        }
+        .scan-body {
+            padding: 20px;
+            background-color: white;
+        }
+        .image-container {
+            margin-bottom: 15px;
+        }
+        .image-container img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .image-label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #495057;
+        }
+        .face-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .face-image {
+            flex: 1;
+            min-width: 150px;
+        }
+        .back-btn {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-card-checklist"></i> SmartID Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ session.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/logout">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12 content">
+                <div class="back-btn">
+                    <a href="/dashboard" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+                
+                <h2>Scan Images for Barcode: {{ barcode }}</h2>
+                
+                {% if scan_records %}
+                    {% for record in scan_records %}
+                    <div class="scan-card">
+                        <div class="scan-header">
+                            <i class="bi bi-calendar3"></i> Scanned on: {{ record.timestamp }}
+                        </div>
+                        <div class="scan-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="image-container">
+                                        <div class="image-label">Full Frame</div>
+                                        {% if record.full_frame_base64 %}
+                                            <img src="{{ record.full_frame_base64 }}" alt="Full Frame">
+                                        {% elif record.full_frame_path %}
+                                            <img src="/image/{{ record.full_frame_path }}" alt="Full Frame">
+                                        {% else %}
+                                            <div class="alert alert-warning">Full frame image not available</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="image-container">
+                                        <div class="image-label">ID Card</div>
+                                        {% if record.card_image_base64 %}
+                                            <img src="{{ record.card_image_base64 }}" alt="ID Card">
+                                        {% elif record.card_image_path %}
+                                            <img src="/image/{{ record.card_image_path }}" alt="ID Card">
+                                        {% else %}
+                                            <div class="alert alert-warning">ID card image not available</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="image-container">
+                                <div class="image-label">Detected Faces</div>
+                                {% if record.face_images_base64 %}
+                                    <div class="face-images">
+                                        {% for face_image in record.face_images_base64 %}
+                                            <div class="face-image">
+                                                <img src="{{ face_image }}" alt="Face {{ loop.index }}">
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% elif record.face_image_paths %}
+                                    <div class="face-images">
+                                        {% for face_path in record.face_image_paths %}
+                                            <div class="face-image">
+                                                <img src="/image/{{ face_path }}" alt="Face {{ loop.index }}">
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-warning">No faces detected</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> No scan images found for barcode: {{ barcode }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

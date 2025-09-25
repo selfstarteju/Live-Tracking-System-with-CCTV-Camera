@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Smart ID Card Tracking System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar {
+            background-color: #343a40;
+        }
+        .sidebar {
+            min-height: calc(100vh - 56px);
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .sidebar .nav-link {
+            color: #343a40;
+            border-radius: 8px;
+            margin: 5px 15px;
+            padding: 10px 15px;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background-color: #2575fc;
+            color: white;
+        }
+        .sidebar .nav-link i {
+            margin-right: 10px;
+        }
+        .content {
+            padding: 20px;
+        }
+        .stat-card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s;
+            height: 100%;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card .card-body {
+            padding: 20px;
+        }
+        .stat-icon {
+            font-size: 2rem;
+            opacity: 0.8;
+        }
+        .green-stat { border-left: 5px solid #28a745; }
+        .yellow-stat { border-left: 5px solid #ffc107; }
+        .red-stat { border-left: 5px solid #dc3545; }
+        .blue-stat { border-left: 5px solid #17a2b8; }
+        .total-stat { border-left: 5px solid #6f42c1; }
+        
+        .color-badge {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .badge-green { background-color: #28a745; }
+        .badge-yellow { background-color: #ffc107; }
+        .badge-red { background-color: #dc3545; }
+        .badge-blue { background-color: #17a2b8; }
+        
+        .table-container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .filter-section {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-card-checklist"></i> SmartID Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/dashboard">Dashboard</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ session.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/logout">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar d-none d-md-block">
+                <div class="pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/dashboard">
+                                <i class="bi bi-speedometer2"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="bi bi-camera-video"></i> Live Scanner
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="bi bi-people"></i> Students
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">
+                                <i class="bi bi-file-earmark-text"></i> Reports
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10 content">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>Attendance Dashboard</h2>
+                    <div>
+                        <button class="btn btn-outline-primary" id="refreshBtn">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <div class="card stat-card total-stat">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted">Total</h6>
+                                    <h3>{{ total_records }}</h3>
+                                </div>
+                                <div class="stat-icon text-primary">
+                                    <i class="bi bi-people-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <div class="card stat-card green-stat">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted">Green</h6>
+                                    <h3>{{ color_counts.green }}</h3>
+                                </div>
+                                <div class="stat-icon text-success">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <div class="card stat-card yellow-stat">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted">Yellow</h6>
+                                    <h3>{{ color_counts.yellow }}</h3>
+                                </div>
+                                <div class="stat-icon text-warning">
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <div class="card stat-card red-stat">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted">Red</h6>
+                                    <h3>{{ color_counts.red }}</h3>
+                                </div>
+                                <div class="stat-icon text-danger">
+                                    <i class="bi bi-x-circle-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <div class="card stat-card blue-stat">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted">Blue</h6>
+                                    <h3>{{ color_counts.blue }}</h3>
+                                </div>
+                                <div class="stat-icon text-info">
+                                    <i class="bi bi-info-circle-fill"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filter-section">
+                    <h5 class="mb-3">Filter Records</h5>
+                    <form method="GET" action="/dashboard" id="filterForm">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="dateFilter" class="form-label">Date</label>
+                                <input type="date" class="form-control" id="dateFilter" name="date" value="{{ date_filter }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="colorFilter" class="form-label">Color Status</label>
+                                <select class="form-select" id="colorFilter" name="color">
+                                    <option value="all" {% if color_filter == 'all' %}selected{% endif %}>All</option>
+                                    <option value="green" {% if color_filter == 'green' %}selected{% endif %}>Green</option>
+                                    <option value="yellow" {% if color_filter == 'yellow' %}selected{% endif %}>Yellow</option>
+                                    <option value="red" {% if color_filter == 'red' %}selected{% endif %}>Red</option>
+                                    <option value="blue" {% if color_filter == 'blue' %}selected{% endif %}>Blue</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Attendance Records Table -->
+                <div class="table-container">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5>Attendance Records</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary" id="exportCsv">
+                                <i class="bi bi-file-earmark-spreadsheet"></i> CSV
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="exportPdf">
+                                <i class="bi bi-file-earmark-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table id="attendanceTable" class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Barcode</th>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Timestamp</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in records %}
+                                <tr>
+                                    <td>{{ record.id }}</td>
+                                    <td>{{ record.barcode }}</td>
+                                    <td>{{ record.name }}</td>
+                                    <td>
+                                        <span class="color-badge badge-{{ record.color }}"></span>
+                                        {{ record.color|capitalize }}
+                                    </td>
+                                    <td>{{ record.timestamp }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="/scan_images/{{ record.barcode }}" class="btn btn-outline-primary">
+                                                <i class="bi bi-images"></i> Images
+                                            </a>
+                                            <button type="button" class="btn btn-outline-primary view-btn" data-id="{{ record.id }}">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger delete-btn" data-id="{{ record.id }}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Record Modal -->
+    <div class="modal fade" id="viewRecordModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Record Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">ID</label>
+                        <input type="text" class="form-control" id="viewId" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Barcode</label>
+                        <input type="text" class="form-control" id="viewBarcode" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" id="viewName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <span class="color-badge" id="viewColorBadge"></span>
+                            </span>
+                            <input type="text" class="form-control" id="viewColor" readonly>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Timestamp</label>
+                        <input type="text" class="form-control" id="viewTimestamp" readonly>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this record? This action cannot be undone.</p>
+                    <input type="hidden" id="deleteId">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div id="notificationToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="toastMessage">
+                <!-- Message will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Initialize DataTable
+            $('#attendanceTable').DataTable({
+                responsive: true,
+                pageLength: 10,
+                order: [[0, 'desc']]
+            });
+            
+            // View record button click
+            $('.view-btn').click(function() {
+                const row = $(this).closest('tr');
+                const id = row.find('td:eq(0)').text();
+                const barcode = row.find('td:eq(1)').text();
+                const name = row.find('td:eq(2)').text();
+                const color = row.find('td:eq(3)').text().trim();
+                const timestamp = row.find('td:eq(4)').text();
+                
+                $('#viewId').val(id);
+                $('#viewBarcode').val(barcode);
+                $('#viewName').val(name);
+                $('#viewColor').val(color);
+                $('#viewTimestamp').val(timestamp);
+                
+                // Set color badge
+                const colorClass = color.toLowerCase();
+                $('#viewColorBadge').removeClass('badge-green badge-yellow badge-red badge-blue').addClass('badge-' + colorClass);
+                
+                const modal = new bootstrap.Modal(document.getElementById('viewRecordModal'));
+                modal.show();
+            });
+            
+            // Delete record button click
+            $('.delete-btn').click(function() {
+                const id = $(this).data('id');
+                $('#deleteId').val(id);
+                
+                const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+                modal.show();
+            });
+            
+            // Confirm delete
+            $('#confirmDelete').click(function() {
+                const id = $('#deleteId').val();
+                
+                // In a real application, you would send an AJAX request to delete the record
+                // For demo purposes, we'll just remove the row from the table
+                $(`.delete-btn[data-id="${id}"]`).closest('tr').remove();
+                
+                // Hide modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+                modal.hide();
+                
+                // Show notification
+                showToast('Record deleted successfully', 'success');
+            });
+            
+            // Refresh button
+            $('#refreshBtn').click(function() {
+                // In a real application, you would reload the data via AJAX
+                // For demo purposes, we'll just reload the page
+                location.reload();
+            });
+            
+            // Export buttons
+            $('#exportCsv').click(function() {
+                showToast('CSV export functionality would be implemented here', 'info');
+            });
+            
+            $('#exportPdf').click(function() {
+                showToast('PDF export functionality would be implemented here', 'info');
+            });
+            
+            // Toast notification function
+            function showToast(message, type = 'info') {
+                const toastEl = document.getElementById('notificationToast');
+                const toastBody = document.getElementById('toastMessage');
+                
+                // Set message
+                toastBody.textContent = message;
+                
+                // Set toast color based on type
+                const toastHeader = toastEl.querySelector('.toast-header');
+                toastHeader.classList.remove('bg-success', 'bg-danger', 'bg-info', 'bg-warning');
+                
+                if (type === 'success') {
+                    toastHeader.classList.add('bg-success');
+                } else if (type === 'error') {
+                    toastHeader.classList.add('bg-danger');
+                } else if (type === 'warning') {
+                    toastHeader.classList.add('bg-warning');
+                } else {
+                    toastHeader.classList.add('bg-info');
+                }
+                
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+        });
+    </script>
+</body>
+</html>

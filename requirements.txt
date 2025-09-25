@@ -1,0 +1,5 @@
+opencv-python==4.8.0.74
+numpy==1.24.3
+pyzbar==0.1.9
+easyocr==1.7.0
+flask==2.3.2
