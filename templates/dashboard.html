@@ -224,6 +224,16 @@
                             </div>
                         </div>
                     </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6>Currently Present</h6>
+                                <ul id="presentList" class="list-unstyled mb-0">
+                                    <li class="text-muted">No data yet</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Filters -->
@@ -290,6 +300,9 @@
                                     <td>{{ record.timestamp }}</td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('student_view', barcode=record.barcode) }}" class="btn btn-outline-secondary" title="Open student page">
+                                                <i class="bi bi-person-lines-fill"></i> Student Page
+                                            </a>
                                             <a href="/scan_images/{{ record.barcode }}" class="btn btn-outline-primary">
                                                 <i class="bi bi-images"></i> Images
                                             </a>
@@ -488,6 +501,30 @@
                 const toast = new bootstrap.Toast(toastEl);
                 toast.show();
             }
+
+            // Presence polling
+            function fetchPresence() {
+                $.getJSON('/api/presence', function(data) {
+                    const list = $('#presentList');
+                    list.empty();
+                    if (!data.present || data.present.length === 0) {
+                        list.append('<li class="text-muted">No one present</li>');
+                        return;
+                    }
+                    data.present.forEach(function(rec) {
+                        const name = rec.name || rec.barcode;
+                        const time = rec.timestamp || '';
+                        const verified = rec.verified ? '<span class="badge bg-success ms-2">verified</span>' : '';
+                        list.append(`<li>${name} <small class="text-muted">${time}</small> ${verified}</li>`);
+                    });
+                }).fail(function() {
+                    // ignore failures for now
+                });
+            }
+
+            // Start polling every 10 seconds
+            fetchPresence();
+            setInterval(fetchPresence, 10000);
         });
     </script>
 </body>

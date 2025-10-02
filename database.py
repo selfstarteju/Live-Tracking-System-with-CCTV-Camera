@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from typing import List, Dict, Any, Optional
 import os
@@ -77,12 +77,23 @@ class DatabaseManager:
                 barcode TEXT NOT NULL,
                 name TEXT NOT NULL,
                 color TEXT NOT NULL,
+                verified INTEGER DEFAULT 0,
                 timestamp TEXT NOT NULL
             )
         ''')
         # Create index for faster queries
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_barcode ON attendance(barcode)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON attendance(timestamp)')
+
+        # Ensure 'verified' column exists for older databases
+        try:
+            cursor.execute("PRAGMA table_info(attendance)")
+            cols = [r[1] for r in cursor.fetchall()]
+            if 'verified' not in cols:
+                cursor.execute('ALTER TABLE attendance ADD COLUMN verified INTEGER DEFAULT 0')
+        except Exception:
+            # If table doesn't exist yet, PRAGMA will fail later; ignore here
+            pass
     
     def _create_scan_images_table(self, conn):
         """Create the scan images table."""
@@ -115,24 +126,13 @@ class DatabaseManager:
         Returns:
             bool: True if successful, False otherwise
         """
-        try:
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT INTO attendance (barcode, name, color, timestamp) VALUES (?, ?, ?, ?)",
-                    (barcode, name, color, timestamp.isoformat())
-                )
-                conn.commit()
-                logger.info(f"Attendance logged: {barcode} - {color}")
-                return True
-        except Exception as e:
-            logger.error(f"Failed to log attendance: {str(e)}")
-            return False
+        return self.log_attendance_with_images(barcode, name, color, timestamp, None, None, None, verified=0)
     
     def log_attendance_with_images(self, barcode: str, name: str, color: str, 
-                                  timestamp: datetime, full_frame_path: str,
+                                  timestamp: datetime, full_frame_path: Optional[str],
                                   card_image_path: Optional[str] = None,
-                                  face_image_paths: Optional[List[str]] = None) -> bool:
+                                  face_image_paths: Optional[List[str]] = None,
+                                  verified: int = 0) -> bool:
         """
         Log attendance data with image paths to the database.
         
@@ -149,25 +149,30 @@ class DatabaseManager:
             bool: True if successful, False otherwise
         """
         try:
-            # Log attendance data
-            self.log_attendance(barcode, name, color, timestamp)
-            
-            # Log image paths
+            # Log attendance data and image paths in a single operation
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO scan_images (barcode, timestamp, full_frame_path, card_image_path, face_image_paths, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (
-                        barcode,
-                        timestamp.isoformat(),
-                        full_frame_path,
-                        card_image_path,
-                        json.dumps(face_image_paths) if face_image_paths else None,
-                        datetime.now().isoformat()
-                    )
+                    "INSERT INTO attendance (barcode, name, color, verified, timestamp) VALUES (?, ?, ?, ?, ?)",
+                    (barcode, name or '', color or '', int(bool(verified)), timestamp.isoformat())
                 )
+
+                # Insert into scan_images if a full_frame_path was provided
+                if full_frame_path is not None:
+                    cursor.execute(
+                        "INSERT INTO scan_images (barcode, timestamp, full_frame_path, card_image_path, face_image_paths, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (
+                            barcode,
+                            timestamp.isoformat(),
+                            full_frame_path,
+                            card_image_path,
+                            json.dumps(face_image_paths) if face_image_paths else None,
+                            datetime.now().isoformat()
+                        )
+                    )
+
                 conn.commit()
-                logger.info(f"Attendance with images logged: {barcode}")
+                logger.info(f"Attendance with images logged: {barcode} (verified={verified})")
                 return True
         except Exception as e:
             logger.error(f"Failed to log attendance with images: {str(e)}")
@@ -287,6 +292,7 @@ class DatabaseManager:
     
     def fetch_attendance(self, date_filter: Optional[str] = None, 
                         color_filter: Optional[str] = None,
+                        barcode: Optional[str] = None,
                         limit: Optional[int] = None,
                         offset: Optional[int] = 0) -> List[Dict[str, Any]]:
         """
@@ -318,6 +324,10 @@ class DatabaseManager:
                 if color_filter and color_filter != 'all':
                     conditions.append("color = ?")
                     params.append(color_filter)
+
+                if barcode:
+                    conditions.append("barcode = ?")
+                    params.append(barcode)
                 
                 if conditions:
                     query += " WHERE " + " AND ".join(conditions)
@@ -376,12 +386,12 @@ class DatabaseManager:
                     )
                     color_counts[color] = cursor.fetchone()[0]
                 
-                # Get counts by day
+                # Get counts by day (use timedelta to correctly step across month/year boundaries)
                 daily_counts = {}
                 for i in range(days):
-                    day = start_date.replace(day=start_date.day - i)
-                    next_day = day.replace(day=day.day + 1)
-                    
+                    day = start_date - timedelta(days=i)
+                    next_day = day + timedelta(days=1)
+
                     cursor.execute(
                         "SELECT COUNT(*) FROM attendance WHERE timestamp >= ? AND timestamp < ?",
                         (day.isoformat(), next_day.isoformat())
@@ -445,6 +455,30 @@ class DatabaseManager:
             logger.error(f"Failed to delete attendance record: {str(e)}")
             return False
 
+    def get_latest_presence(self, barcode: str, within_seconds: int = 300) -> Optional[Dict[str, Any]]:
+        """Return the latest attendance row for barcode within the last `within_seconds` seconds, or None."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT * FROM attendance WHERE barcode = ? ORDER BY timestamp DESC LIMIT 1",
+                    (barcode,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                rec = dict(row)
+                try:
+                    ts = datetime.fromisoformat(rec['timestamp'])
+                except Exception:
+                    return None
+                if (datetime.now() - ts).total_seconds() <= within_seconds:
+                    return rec
+                return None
+        except Exception as e:
+            logger.error(f"Failed to query latest presence: {e}")
+            return None
+
 # Import json for face_image_paths
 import json
 
@@ -477,10 +511,11 @@ def save_scan_images(barcode: str, timestamp: datetime,
 
 def fetch_attendance(date_filter: Optional[str] = None, 
                     color_filter: Optional[str] = None,
+                    barcode: Optional[str] = None,
                     limit: Optional[int] = None,
                     offset: Optional[int] = 0) -> List[Dict[str, Any]]:
     """Fetch attendance records (backward compatibility)."""
-    return db_manager.fetch_attendance(date_filter, color_filter, limit, offset)
+    return db_manager.fetch_attendance(date_filter, color_filter, barcode, limit, offset)
 
 def get_attendance_stats(days: int = 7) -> Dict[str, Any]:
     """Get attendance statistics (backward compatibility)."""
